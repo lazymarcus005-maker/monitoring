@@ -14,7 +14,7 @@ with sync_playwright() as p:
     browser = p.chromium.launch(headless=False)
     ctx = browser.new_context()
     page = ctx.new_page()
-    page.goto("https://claude.ai/login")
+    page.goto("https://claude.ai/login", wait_until="domcontentloaded", timeout=60_000)
 
     print("=" * 50)
     print("Login claude.ai ใน browser ที่เปิดขึ้นมา")

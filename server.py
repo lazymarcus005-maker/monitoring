@@ -70,9 +70,11 @@ def _fetch_claude_usage():
             page = ctx.new_page()
             page.goto(
                 "https://claude.ai/settings/usage",
-                wait_until="networkidle",
+                wait_until="domcontentloaded",
                 timeout=30_000,
             )
+            # รอให้ React render เสร็จ
+            page.wait_for_timeout(4_000)
 
             data = page.evaluate("""() => {
                 const text = document.body.innerText;
