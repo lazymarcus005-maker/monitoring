@@ -169,11 +169,82 @@
     }
 
     .empty { color: #484f58; font-size: .8rem; padding: .75rem .5rem; }
+
+    /* ── Plan usage ──────────────────────────────────── */
+    .plan-wrap {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: .75rem 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .plan-title {
+      font-size: .7rem;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: .75rem;
+    }
+
+    .plan-row {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      margin-bottom: .55rem;
+    }
+
+    .plan-row:last-child { margin-bottom: 0; }
+
+    .plan-label {
+      font-size: .72rem;
+      color: #c9d1d9;
+      width: 160px;
+      flex-shrink: 0;
+    }
+
+    .plan-bar-wrap {
+      flex: 1;
+      height: 4px;
+      background: #30363d;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .plan-bar {
+      height: 100%;
+      border-radius: 2px;
+      background: #58a6ff;
+      transition: width .4s ease;
+    }
+
+    .plan-bar.warn  { background: #d29922; }
+    .plan-bar.crit  { background: #da3633; }
+
+    .plan-meta {
+      font-size: .68rem;
+      color: #8b949e;
+      white-space: nowrap;
+      width: 160px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    .plan-empty {
+      font-size: .75rem;
+      color: #484f58;
+    }
   </style>
 </head>
 <body>
 
 <h1>▸ Claude Usage Monitor</h1>
+
+<!-- Plan usage (rate limits) -->
+<div class="plan-wrap">
+  <div class="plan-title">Plan usage</div>
+  <div id="plan-body"><span class="plan-empty">ส่ง request แรกเพื่อดูข้อมูล</span></div>
+</div>
 
 <!-- Summary cards -->
 <div class="cards">
@@ -230,6 +301,42 @@
     $('s-lat').textContent  = d.avg_latency_ms + ' ms';
   }
 
+  function fmtReset(iso) {
+    if (!iso) return '';
+    const diff = Math.max(0, Math.round((new Date(iso) - Date.now()) / 60000));
+    return diff < 1 ? 'resets <1m' : `resets ${diff}m`;
+  }
+
+  function renderPlanRow(label, limit, remaining, reset) {
+    if (!limit || !remaining) return '';
+    const lim = parseInt(limit), rem = parseInt(remaining);
+    const used = lim - rem;
+    const pct = Math.min(100, Math.round(used / lim * 100));
+    const cls = pct >= 90 ? 'crit' : pct >= 70 ? 'warn' : '';
+    const meta = `${rem.toLocaleString()} / ${lim.toLocaleString()} · ${fmtReset(reset)}`;
+    return `<div class="plan-row">
+      <span class="plan-label">${label}</span>
+      <div class="plan-bar-wrap"><div class="plan-bar ${cls}" style="width:${pct}%"></div></div>
+      <span class="plan-meta">${meta}</span>
+    </div>`;
+  }
+
+  async function refreshRatelimits() {
+    const r = await fetch('/api/ratelimits');
+    const d = await r.json();
+    const body = $('plan-body');
+    if (!Object.keys(d).length || !d.requests_limit) {
+      body.innerHTML = '<span class="plan-empty">ส่ง request แรกเพื่อดูข้อมูล</span>';
+      return;
+    }
+    body.innerHTML = [
+      renderPlanRow('Requests / min',    d.requests_limit,      d.requests_remaining,      d.requests_reset),
+      renderPlanRow('Tokens / min',      d.tokens_limit,        d.tokens_remaining,        d.tokens_reset),
+      renderPlanRow('Input tokens / min',d.input_tokens_limit,  d.input_tokens_remaining,  null),
+      renderPlanRow('Output tokens / min',d.output_tokens_limit,d.output_tokens_remaining, null),
+    ].filter(Boolean).join('') || '<span class="plan-empty">ไม่พบข้อมูล rate limit</span>';
+  }
+
   async function refreshHistory() {
     const r = await fetch('/api/history');
     const rows = await r.json();
@@ -284,7 +391,7 @@
         appendMsg('Error: ' + data.error, 'error');
       } else {
         appendMsg(data.content, 'bot');
-        await Promise.all([refreshSummary(), refreshHistory()]);
+        await Promise.all([refreshSummary(), refreshHistory(), refreshRatelimits()]);
       }
     } catch(e) {
       appendMsg('Network error: ' + e.message, 'error');
@@ -300,6 +407,8 @@
 
   refreshSummary();
   refreshHistory();
+  refreshRatelimits();
+  setInterval(refreshRatelimits, 30_000);
 </script>
 </body>
 </html>

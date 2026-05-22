@@ -15,6 +15,7 @@ app = Flask(__name__)
 client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 usage_history = []
+latest_ratelimits = {}
 
 PRICING = {
     "claude-haiku-4-5-20251001": {"input": 0.80, "output": 4.00},
@@ -134,7 +135,7 @@ def chat():
 
     try:
         t0 = time.time()
-        response = client.messages.create(
+        raw = client.messages.with_raw_response.create(
             model=model,
             max_tokens=1024,
             messages=[{"role": "user", "content": message}],
@@ -142,6 +143,21 @@ def chat():
         latency_ms = round((time.time() - t0) * 1000)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+    response = raw.parsed
+    h = raw.headers
+    latest_ratelimits.update({
+        "requests_limit":          h.get("anthropic-ratelimit-requests-limit"),
+        "requests_remaining":      h.get("anthropic-ratelimit-requests-remaining"),
+        "requests_reset":          h.get("anthropic-ratelimit-requests-reset"),
+        "tokens_limit":            h.get("anthropic-ratelimit-tokens-limit"),
+        "tokens_remaining":        h.get("anthropic-ratelimit-tokens-remaining"),
+        "tokens_reset":            h.get("anthropic-ratelimit-tokens-reset"),
+        "input_tokens_limit":      h.get("anthropic-ratelimit-input-tokens-limit"),
+        "input_tokens_remaining":  h.get("anthropic-ratelimit-input-tokens-remaining"),
+        "output_tokens_limit":     h.get("anthropic-ratelimit-output-tokens-limit"),
+        "output_tokens_remaining": h.get("anthropic-ratelimit-output-tokens-remaining"),
+    })
 
     input_tokens = response.usage.input_tokens
     output_tokens = response.usage.output_tokens
@@ -158,7 +174,7 @@ def chat():
     }
     usage_history.append(record)
 
-    return jsonify({"content": response.content[0].text, "usage": record})
+    return jsonify({"content": response.content[0].text, "usage": record, "ratelimits": latest_ratelimits})
 
 
 @app.route("/api/history")
@@ -169,6 +185,11 @@ def history():
 @app.route("/api/summary")
 def summary():
     return jsonify(_get_summary())
+
+
+@app.route("/api/ratelimits")
+def ratelimits():
+    return jsonify(latest_ratelimits)
 
 
 @app.route("/api/tv-image")
