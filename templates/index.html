@@ -77,12 +77,12 @@
       gap: .7rem;
     }
 
-    /* 8-bit pixel-art logo (CSS) */
+    /* 8-bit pixel-art logo — 11×11 grid */
     .pixel-logo {
       display: grid;
-      grid-template-columns: repeat(8, 5px);
-      grid-template-rows: repeat(8, 5px);
-      gap: 1px;
+      grid-template-columns: repeat(11, 5px);
+      grid-template-rows: repeat(11, 5px);
+      gap: 0;
       flex-shrink: 0;
     }
 
@@ -92,10 +92,8 @@
       height: 5px;
     }
 
-    .p1 { background: var(--orange); }
-    .p2 { background: var(--orange2); }
+    .p1 { background: #CC7A52; }
     .p0 { background: transparent; }
-    .pd { background: #3a1a08; }
 
     .logo-text { line-height: 1.9; }
     .logo-text .t1 { color: var(--orange); font-size: 10px; }
@@ -252,16 +250,30 @@
   <!-- Header -->
   <div class="header">
     <div class="logo-wrap">
-      <!-- 8-bit pixel art of Claude/terminal icon -->
+      <!-- Claude Code 8-bit robot logo 11×11 -->
       <div class="pixel-logo" aria-hidden="true">
-        <!-- row 1 --> <span class="p0"></span><span class="p0"></span><span class="p2"></span><span class="p2"></span><span class="p2"></span><span class="p2"></span><span class="p0"></span><span class="p0"></span>
-        <!-- row 2 --> <span class="p0"></span><span class="p2"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p2"></span><span class="p0"></span>
-        <!-- row 3 --> <span class="p2"></span><span class="p1"></span><span class="pd"></span><span class="p1"></span><span class="p1"></span><span class="pd"></span><span class="p1"></span><span class="p2"></span>
-        <!-- row 4 --> <span class="p2"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p2"></span>
-        <!-- row 5 --> <span class="p2"></span><span class="p1"></span><span class="p2"></span><span class="p1"></span><span class="p1"></span><span class="p2"></span><span class="p1"></span><span class="p2"></span>
-        <!-- row 6 --> <span class="p2"></span><span class="p1"></span><span class="p1"></span><span class="pd"></span><span class="pd"></span><span class="p1"></span><span class="p1"></span><span class="p2"></span>
-        <!-- row 7 --> <span class="p0"></span><span class="p2"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p2"></span><span class="p0"></span>
-        <!-- row 8 --> <span class="p0"></span><span class="p0"></span><span class="p2"></span><span class="p2"></span><span class="p2"></span><span class="p2"></span><span class="p0"></span><span class="p0"></span>
+        <!-- r1  . . # # # # # # # . . -->
+        <span class="p0"></span><span class="p0"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p0"></span><span class="p0"></span>
+        <!-- r2  . . # # # # # # # . . -->
+        <span class="p0"></span><span class="p0"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p0"></span><span class="p0"></span>
+        <!-- r3  . . # . . # . . # . . (eyes) -->
+        <span class="p0"></span><span class="p0"></span><span class="p1"></span><span class="p0"></span><span class="p0"></span><span class="p1"></span><span class="p0"></span><span class="p0"></span><span class="p1"></span><span class="p0"></span><span class="p0"></span>
+        <!-- r4  . . # . . # . . # . . (eyes) -->
+        <span class="p0"></span><span class="p0"></span><span class="p1"></span><span class="p0"></span><span class="p0"></span><span class="p1"></span><span class="p0"></span><span class="p0"></span><span class="p1"></span><span class="p0"></span><span class="p0"></span>
+        <!-- r5  # # # # # # # # # # # (arms) -->
+        <span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span>
+        <!-- r6  # # # # # # # # # # # (arms) -->
+        <span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span>
+        <!-- r7  . . # # # # # # # . . -->
+        <span class="p0"></span><span class="p0"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p0"></span><span class="p0"></span>
+        <!-- r8  . . # # # # # # # . . -->
+        <span class="p0"></span><span class="p0"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p0"></span><span class="p0"></span>
+        <!-- r9  . . # . # . # . # . . (legs) -->
+        <span class="p0"></span><span class="p0"></span><span class="p1"></span><span class="p0"></span><span class="p1"></span><span class="p0"></span><span class="p1"></span><span class="p0"></span><span class="p1"></span><span class="p0"></span><span class="p0"></span>
+        <!-- r10 . . # . # . # . # . . -->
+        <span class="p0"></span><span class="p0"></span><span class="p1"></span><span class="p0"></span><span class="p1"></span><span class="p0"></span><span class="p1"></span><span class="p0"></span><span class="p1"></span><span class="p0"></span><span class="p0"></span>
+        <!-- r11 . . # . # . # . # . . -->
+        <span class="p0"></span><span class="p0"></span><span class="p1"></span><span class="p0"></span><span class="p1"></span><span class="p0"></span><span class="p1"></span><span class="p0"></span><span class="p1"></span><span class="p0"></span><span class="p0"></span>
       </div>
       <div class="logo-text">
         <div class="t1">ANTHROPIC</div>
