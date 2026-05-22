@@ -1,414 +1,378 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Claude Usage Monitor</title>
+  <title>Claude Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --orange:   #ff7528;
+      --orange2:  #e85d04;
+      --orange-dim: #7a3510;
+      --bg:       #0b0c0b;
+      --bg2:      #141614;
+      --bg3:      #1c1f1c;
+      --border:   #2e3a2e;
+      --text:     #c8d8c0;
+      --dim:      #5a7050;
+      --green:    #4ec94e;
+      --yellow:   #f0c040;
+      --red:      #e04040;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      background: #0d1117;
-      color: #c9d1d9;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Press Start 2P', 'Courier New', monospace;
+      font-size: 10px;
       min-height: 100vh;
-      padding: 1.5rem;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 2rem 1rem;
     }
 
-    h1 {
-      font-size: 1rem;
-      color: #58a6ff;
-      margin-bottom: 1.5rem;
-      letter-spacing: .05em;
-    }
-
-    /* ── Summary cards ───────────────────────────────── */
-    .cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: .75rem;
-      margin-bottom: 1.5rem;
+    /* scanline overlay */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,.08) 2px,
+        rgba(0,0,0,.08) 4px
+      );
+      z-index: 999;
     }
 
     .card {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 6px;
-      padding: .75rem 1rem;
+      width: 380px;
+      border: 2px solid var(--orange2);
+      background: var(--bg2);
+      image-rendering: pixelated;
+      box-shadow: 0 0 0 1px var(--bg), 0 0 0 3px var(--orange-dim),
+                  0 0 24px rgba(232,93,4,.15);
     }
 
-    .card .label {
-      font-size: .65rem;
-      color: #8b949e;
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      margin-bottom: .25rem;
-    }
-
-    .card .value {
-      font-size: 1.1rem;
-      color: #e6edf3;
-      font-weight: 600;
-    }
-
-    /* ── Chat area ───────────────────────────────────── */
-    .chat-wrap {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 6px;
-      padding: 1rem;
-      margin-bottom: 1.5rem;
-    }
-
-    #messages {
-      height: 260px;
-      overflow-y: auto;
-      margin-bottom: .75rem;
-      display: flex;
-      flex-direction: column;
-      gap: .5rem;
-    }
-
-    .msg {
-      padding: .4rem .7rem;
-      border-radius: 4px;
-      font-size: .8rem;
-      line-height: 1.5;
-      max-width: 90%;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
-    .msg.user  { align-self: flex-end;  background: #1f6feb33; border: 1px solid #1f6feb55; }
-    .msg.bot   { align-self: flex-start; background: #21262d;   border: 1px solid #30363d; }
-    .msg.error { align-self: flex-start; background: #3d1c1c;   border: 1px solid #da3633; color: #ff7b72; }
-
-    .input-row {
-      display: flex;
-      gap: .5rem;
-    }
-
-    select {
-      background: #0d1117;
-      color: #c9d1d9;
-      border: 1px solid #30363d;
-      border-radius: 4px;
-      padding: .4rem .6rem;
-      font-size: .75rem;
-      font-family: inherit;
-    }
-
-    input[type="text"] {
-      flex: 1;
-      background: #0d1117;
-      color: #e6edf3;
-      border: 1px solid #30363d;
-      border-radius: 4px;
-      padding: .4rem .7rem;
-      font-size: .8rem;
-      font-family: inherit;
-      outline: none;
-    }
-
-    input[type="text"]:focus { border-color: #58a6ff; }
-
-    button {
-      background: #238636;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      padding: .4rem .9rem;
-      font-size: .8rem;
-      font-family: inherit;
-      cursor: pointer;
-      transition: background .15s;
-    }
-
-    button:hover   { background: #2ea043; }
-    button:disabled { background: #21262d; color: #8b949e; cursor: default; }
-
-    /* ── History table ───────────────────────────────── */
-    .section-title {
-      font-size: .7rem;
-      color: #8b949e;
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      margin-bottom: .5rem;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: .75rem;
-    }
-
-    th {
-      text-align: left;
-      color: #8b949e;
-      border-bottom: 1px solid #30363d;
-      padding: .35rem .5rem;
-      font-weight: 400;
-    }
-
-    td {
-      padding: .35rem .5rem;
-      border-bottom: 1px solid #21262d;
-      color: #c9d1d9;
-    }
-
-    tr:last-child td { border-bottom: none; }
-
-    .model-tag {
-      display: inline-block;
-      font-size: .65rem;
-      padding: .1rem .4rem;
-      border-radius: 3px;
-      background: #1f6feb22;
-      border: 1px solid #1f6feb44;
-      color: #58a6ff;
-    }
-
-    .empty { color: #484f58; font-size: .8rem; padding: .75rem .5rem; }
-
-    /* ── Plan usage ──────────────────────────────────── */
-    .plan-wrap {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 6px;
-      padding: .75rem 1rem;
-      margin-bottom: 1.5rem;
-    }
-
-    .plan-title {
-      font-size: .7rem;
-      color: #8b949e;
-      text-transform: uppercase;
-      letter-spacing: .08em;
-      margin-bottom: .75rem;
-    }
-
-    .plan-row {
+    /* ── Header ─────────────────────────────────────── */
+    .header {
       display: flex;
       align-items: center;
-      gap: .6rem;
-      margin-bottom: .55rem;
+      justify-content: space-between;
+      padding: .9rem 1rem;
+      border-bottom: 2px solid var(--orange2);
+      background: var(--bg3);
     }
 
-    .plan-row:last-child { margin-bottom: 0; }
+    .logo-wrap {
+      display: flex;
+      align-items: center;
+      gap: .7rem;
+    }
 
-    .plan-label {
-      font-size: .72rem;
-      color: #c9d1d9;
-      width: 160px;
+    /* 8-bit pixel-art logo (CSS) */
+    .pixel-logo {
+      display: grid;
+      grid-template-columns: repeat(8, 5px);
+      grid-template-rows: repeat(8, 5px);
+      gap: 1px;
       flex-shrink: 0;
     }
 
-    .plan-bar-wrap {
+    .pixel-logo span {
+      display: block;
+      width: 5px;
+      height: 5px;
+    }
+
+    .p1 { background: var(--orange); }
+    .p2 { background: var(--orange2); }
+    .p0 { background: transparent; }
+    .pd { background: #3a1a08; }
+
+    .logo-text { line-height: 1.9; }
+    .logo-text .t1 { color: var(--orange); font-size: 10px; }
+    .logo-text .t2 { color: var(--dim);    font-size: 7px; }
+
+    .cost-wrap { text-align: right; line-height: 2; }
+    .cost-wrap .amount { color: var(--orange); font-size: 13px; }
+    .cost-wrap .total  { color: var(--dim);    font-size: 7px; }
+
+    /* ── Metric boxes ────────────────────────────────── */
+    .metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .metric {
+      padding: .7rem .6rem;
+      border-right: 1px solid var(--border);
+      text-align: center;
+    }
+
+    .metric:last-child { border-right: none; }
+
+    .metric .mlabel {
+      color: var(--dim);
+      font-size: 6px;
+      letter-spacing: .05em;
+      margin-bottom: .5rem;
+    }
+
+    .metric .mvalue {
+      color: var(--orange);
+      font-size: 14px;
+    }
+
+    .metric .mvalue.ok   { color: var(--green); }
+    .metric .mvalue.warn { color: var(--yellow); }
+    .metric .mvalue.crit { color: var(--red); }
+
+    /* ── Usage bars ──────────────────────────────────── */
+    .bars-section {
+      padding: .85rem 1rem;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .bars-title {
+      color: var(--orange);
+      font-size: 7px;
+      margin-bottom: .75rem;
+    }
+
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      margin-bottom: .6rem;
+    }
+
+    .bar-row:last-child { margin-bottom: 0; }
+
+    .bar-track {
       flex: 1;
-      height: 4px;
-      background: #30363d;
-      border-radius: 2px;
-      overflow: hidden;
+      height: 8px;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      position: relative;
+      image-rendering: pixelated;
     }
 
-    .plan-bar {
+    .bar-fill {
       height: 100%;
-      border-radius: 2px;
-      background: #58a6ff;
-      transition: width .4s ease;
+      background: var(--orange2);
+      position: relative;
+      transition: width .6s steps(10);
     }
 
-    .plan-bar.warn  { background: #d29922; }
-    .plan-bar.crit  { background: #da3633; }
+    .bar-fill::after {
+      content: '';
+      position: absolute;
+      right: 0; top: 0;
+      width: 2px; height: 100%;
+      background: var(--orange);
+    }
 
-    .plan-meta {
-      font-size: .68rem;
-      color: #8b949e;
-      white-space: nowrap;
-      width: 160px;
+    .bar-fill.warn { background: #7a6000; }
+    .bar-fill.warn::after { background: var(--yellow); }
+    .bar-fill.crit { background: #6a1010; }
+    .bar-fill.crit::after { background: var(--red); }
+
+    .bar-label {
+      color: var(--dim);
+      font-size: 6px;
+      width: 68px;
       text-align: right;
       flex-shrink: 0;
     }
 
-    .plan-empty {
-      font-size: .75rem;
-      color: #484f58;
+    /* ── Footer ──────────────────────────────────────── */
+    .footer {
+      padding: .55rem 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg3);
+    }
+
+    .footer .ping {
+      color: var(--dim);
+      font-size: 6px;
+    }
+
+    .footer .ping .dot {
+      display: inline-block;
+      width: 5px; height: 5px;
+      background: var(--green);
+      margin-right: 4px;
+      animation: blink 1.2s step-end infinite;
+    }
+
+    @keyframes blink { 50% { opacity: 0; } }
+
+    .footer .updated {
+      color: var(--dim);
+      font-size: 6px;
     }
   </style>
 </head>
 <body>
 
-<h1>▸ Claude Usage Monitor</h1>
+<div class="card">
 
-<!-- Plan usage (rate limits) -->
-<div class="plan-wrap">
-  <div class="plan-title">Plan usage</div>
-  <div id="plan-body"><span class="plan-empty">ส่ง request แรกเพื่อดูข้อมูล</span></div>
-</div>
-
-<!-- Summary cards -->
-<div class="cards">
-  <div class="card"><div class="label">Requests</div><div class="value" id="s-req">—</div></div>
-  <div class="card"><div class="label">Input tokens</div><div class="value" id="s-in">—</div></div>
-  <div class="card"><div class="label">Output tokens</div><div class="value" id="s-out">—</div></div>
-  <div class="card"><div class="label">Cost (USD)</div><div class="value" id="s-cost">—</div></div>
-  <div class="card"><div class="label">Avg latency</div><div class="value" id="s-lat">—</div></div>
-</div>
-
-<!-- Chat -->
-<div class="chat-wrap">
-  <div id="messages"></div>
-  <div class="input-row">
-    <select id="model">
-      <option value="claude-haiku-4-5-20251001">Haiku 4.5 (cheap)</option>
-      <option value="claude-sonnet-4-6">Sonnet 4.6</option>
-      <option value="claude-opus-4-7">Opus 4.7</option>
-    </select>
-    <input type="text" id="prompt" placeholder="พิมพ์ข้อความ…" autocomplete="off">
-    <button id="send-btn" onclick="sendMessage()">Send</button>
+  <!-- Header -->
+  <div class="header">
+    <div class="logo-wrap">
+      <!-- 8-bit pixel art of Claude/terminal icon -->
+      <div class="pixel-logo" aria-hidden="true">
+        <!-- row 1 --> <span class="p0"></span><span class="p0"></span><span class="p2"></span><span class="p2"></span><span class="p2"></span><span class="p2"></span><span class="p0"></span><span class="p0"></span>
+        <!-- row 2 --> <span class="p0"></span><span class="p2"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p2"></span><span class="p0"></span>
+        <!-- row 3 --> <span class="p2"></span><span class="p1"></span><span class="pd"></span><span class="p1"></span><span class="p1"></span><span class="pd"></span><span class="p1"></span><span class="p2"></span>
+        <!-- row 4 --> <span class="p2"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p2"></span>
+        <!-- row 5 --> <span class="p2"></span><span class="p1"></span><span class="p2"></span><span class="p1"></span><span class="p1"></span><span class="p2"></span><span class="p1"></span><span class="p2"></span>
+        <!-- row 6 --> <span class="p2"></span><span class="p1"></span><span class="p1"></span><span class="pd"></span><span class="pd"></span><span class="p1"></span><span class="p1"></span><span class="p2"></span>
+        <!-- row 7 --> <span class="p0"></span><span class="p2"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p1"></span><span class="p2"></span><span class="p0"></span>
+        <!-- row 8 --> <span class="p0"></span><span class="p0"></span><span class="p2"></span><span class="p2"></span><span class="p2"></span><span class="p2"></span><span class="p0"></span><span class="p0"></span>
+      </div>
+      <div class="logo-text">
+        <div class="t1">ANTHROPIC</div>
+        <div class="t2">CLAUDE CODE</div>
+      </div>
+    </div>
+    <div class="cost-wrap">
+      <div class="amount" id="h-cost">$0.000000</div>
+      <div class="total" id="h-reqs">0 REQUESTS</div>
+    </div>
   </div>
-</div>
 
-<!-- History -->
-<div class="section-title">Request history</div>
-<table>
-  <thead>
-    <tr>
-      <th>Time</th>
-      <th>Model</th>
-      <th>In</th>
-      <th>Out</th>
-      <th>Cost ($)</th>
-      <th>ms</th>
-      <th>Prompt</th>
-    </tr>
-  </thead>
-  <tbody id="history-body">
-    <tr><td colspan="7" class="empty">ยังไม่มีประวัติ</td></tr>
-  </tbody>
-</table>
+  <!-- Metric boxes -->
+  <div class="metrics">
+    <div class="metric">
+      <div class="mlabel">REQUESTS</div>
+      <div class="mvalue" id="m-req">—</div>
+    </div>
+    <div class="metric">
+      <div class="mlabel">TOKENS</div>
+      <div class="mvalue" id="m-tok">—</div>
+    </div>
+    <div class="metric">
+      <div class="mlabel">MODEL</div>
+      <div class="mvalue ok" style="font-size:8px" id="m-model">haiku</div>
+    </div>
+  </div>
+
+  <!-- Usage bars -->
+  <div class="bars-section">
+    <div class="bars-title">&gt; usage.limit</div>
+
+    <div class="bar-row">
+      <div class="bar-track">
+        <div class="bar-fill" id="bar-req" style="width:0%"></div>
+      </div>
+      <div class="bar-label" id="lbl-req">REQUESTS</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-track">
+        <div class="bar-fill" id="bar-tok" style="width:0%"></div>
+      </div>
+      <div class="bar-label" id="lbl-tok">TOKENS</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-track">
+        <div class="bar-fill" id="bar-in" style="width:0%"></div>
+      </div>
+      <div class="bar-label" id="lbl-in">IN TOKENS</div>
+    </div>
+
+    <div class="bar-row">
+      <div class="bar-track">
+        <div class="bar-fill" id="bar-out" style="width:0%"></div>
+      </div>
+      <div class="bar-label" id="lbl-out">OUT TOKENS</div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="ping"><span class="dot"></span>AUTO PING 5M</div>
+    <div class="updated" id="f-updated">WAITING...</div>
+  </div>
+
+</div>
 
 <script>
   const $ = id => document.getElementById(id);
 
-  async function refreshSummary() {
-    const r = await fetch('/api/summary');
-    const d = await r.json();
-    $('s-req').textContent  = d.total_requests;
-    $('s-in').textContent   = d.total_input_tokens.toLocaleString();
-    $('s-out').textContent  = d.total_output_tokens.toLocaleString();
-    $('s-cost').textContent = '$' + d.total_cost_usd.toFixed(6);
-    $('s-lat').textContent  = d.avg_latency_ms + ' ms';
+  function pct(limit, remaining) {
+    if (!limit || !remaining) return 0;
+    return Math.min(100, Math.round((parseInt(limit) - parseInt(remaining)) / parseInt(limit) * 100));
+  }
+
+  function barClass(p) {
+    return p >= 90 ? 'crit' : p >= 70 ? 'warn' : '';
   }
 
   function fmtReset(iso) {
     if (!iso) return '';
-    const diff = Math.max(0, Math.round((new Date(iso) - Date.now()) / 60000));
-    return diff < 1 ? 'resets <1m' : `resets ${diff}m`;
+    const m = Math.max(0, Math.round((new Date(iso) - Date.now()) / 60000));
+    return m < 1 ? '<1m' : m + 'm';
   }
 
-  function renderPlanRow(label, limit, remaining, reset) {
-    if (!limit || !remaining) return '';
-    const lim = parseInt(limit), rem = parseInt(remaining);
-    const used = lim - rem;
-    const pct = Math.min(100, Math.round(used / lim * 100));
-    const cls = pct >= 90 ? 'crit' : pct >= 70 ? 'warn' : '';
-    const meta = `${rem.toLocaleString()} / ${lim.toLocaleString()} · ${fmtReset(reset)}`;
-    return `<div class="plan-row">
-      <span class="plan-label">${label}</span>
-      <div class="plan-bar-wrap"><div class="plan-bar ${cls}" style="width:${pct}%"></div></div>
-      <span class="plan-meta">${meta}</span>
-    </div>`;
+  function setBar(barId, lblId, label, limit, remaining, reset) {
+    const p = pct(limit, remaining);
+    const bar = $(barId);
+    bar.style.width = p + '%';
+    bar.className = 'bar-fill ' + barClass(p);
+    const resetStr = reset ? ' ' + fmtReset(reset) : '';
+    $(lblId).textContent = label + ' ' + p + '%' + resetStr;
   }
 
-  async function refreshRatelimits() {
-    const r = await fetch('/api/ratelimits');
-    const d = await r.json();
-    const body = $('plan-body');
-    if (!Object.keys(d).length || !d.requests_limit) {
-      body.innerHTML = '<span class="plan-empty">ส่ง request แรกเพื่อดูข้อมูล</span>';
-      return;
-    }
-    body.innerHTML = [
-      renderPlanRow('Requests / min',    d.requests_limit,      d.requests_remaining,      d.requests_reset),
-      renderPlanRow('Tokens / min',      d.tokens_limit,        d.tokens_remaining,        d.tokens_reset),
-      renderPlanRow('Input tokens / min',d.input_tokens_limit,  d.input_tokens_remaining,  null),
-      renderPlanRow('Output tokens / min',d.output_tokens_limit,d.output_tokens_remaining, null),
-    ].filter(Boolean).join('') || '<span class="plan-empty">ไม่พบข้อมูล rate limit</span>';
+  function setMetric(id, value, threshold70, threshold90) {
+    const el = $(id);
+    const n = parseInt(value);
+    el.textContent = isNaN(n) ? value : value;
+    el.className = 'mvalue' +
+      (n >= threshold90 ? ' crit' : n >= threshold70 ? ' warn' : ' ok');
   }
 
-  async function refreshHistory() {
-    const r = await fetch('/api/history');
-    const rows = await r.json();
-    const tbody = $('history-body');
-    if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="empty">ยังไม่มีประวัติ</td></tr>';
-      return;
-    }
-    tbody.innerHTML = rows.map(row => `
-      <tr>
-        <td>${row.timestamp}</td>
-        <td><span class="model-tag">${row.model.replace('claude-','')}</span></td>
-        <td>${row.input_tokens}</td>
-        <td>${row.output_tokens}</td>
-        <td>${row.cost_usd.toFixed(6)}</td>
-        <td>${row.latency_ms}</td>
-        <td style="color:#8b949e;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(row.preview)}</td>
-      </tr>`).join('');
+  async function refresh() {
+    const [rl, sm] = await Promise.all([
+      fetch('/api/ratelimits').then(r => r.json()),
+      fetch('/api/summary').then(r => r.json()),
+    ]);
+
+    // header
+    $('h-cost').textContent = '$' + sm.total_cost_usd.toFixed(6);
+    $('h-reqs').textContent = sm.total_requests + ' REQUESTS';
+
+    // metric boxes
+    const reqPct = pct(rl.requests_limit, rl.requests_remaining);
+    const tokPct = pct(rl.tokens_limit,   rl.tokens_remaining);
+    setMetric('m-req',   reqPct + '%', 70, 90);
+    setMetric('m-tok',   tokPct + '%', 70, 90);
+
+    // bars
+    setBar('bar-req', 'lbl-req', 'REQ',  rl.requests_limit,     rl.requests_remaining,     rl.requests_reset);
+    setBar('bar-tok', 'lbl-tok', 'TOK',  rl.tokens_limit,       rl.tokens_remaining,       rl.tokens_reset);
+    setBar('bar-in',  'lbl-in',  'IN',   rl.input_tokens_limit, rl.input_tokens_remaining, null);
+    setBar('bar-out', 'lbl-out', 'OUT',  rl.output_tokens_limit,rl.output_tokens_remaining,null);
+
+    // footer
+    $('f-updated').textContent = rl.last_ping_at ? 'PING ' + rl.last_ping_at : 'WAITING...';
   }
 
-  function esc(s) {
-    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
-  function appendMsg(text, cls) {
-    const div = document.createElement('div');
-    div.className = 'msg ' + cls;
-    div.textContent = text;
-    const box = $('messages');
-    box.appendChild(div);
-    box.scrollTop = box.scrollHeight;
-  }
-
-  async function sendMessage() {
-    const input = $('prompt');
-    const btn   = $('send-btn');
-    const msg   = input.value.trim();
-    if (!msg) return;
-
-    input.value = '';
-    btn.disabled = true;
-    appendMsg(msg, 'user');
-
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ message: msg, model: $('model').value }),
-      });
-      const data = await res.json();
-      if (data.error) {
-        appendMsg('Error: ' + data.error, 'error');
-      } else {
-        appendMsg(data.content, 'bot');
-        await Promise.all([refreshSummary(), refreshHistory(), refreshRatelimits()]);
-      }
-    } catch(e) {
-      appendMsg('Network error: ' + e.message, 'error');
-    } finally {
-      btn.disabled = false;
-      input.focus();
-    }
-  }
-
-  $('prompt').addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-  });
-
-  refreshSummary();
-  refreshHistory();
-  refreshRatelimits();
-  setInterval(refreshRatelimits, 30_000);
+  refresh();
+  setInterval(refresh, 15_000);
 </script>
 </body>
 </html>
