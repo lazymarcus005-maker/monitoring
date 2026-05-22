@@ -1,10 +1,13 @@
+import io
 import os
 import time
 from datetime import datetime
 
-from flask import Flask, jsonify, render_template, request
+import requests
+from flask import Flask, jsonify, render_template, request, send_file
 from anthropic import Anthropic
 from dotenv import load_dotenv
+from PIL import Image, ImageDraw, ImageFont
 
 load_dotenv()
 
@@ -27,6 +30,93 @@ def calculate_cost(model, input_tokens, output_tokens):
     return (input_tokens / 1_000_000) * price["input"] + \
            (output_tokens / 1_000_000) * price["output"]
 
+
+def _get_summary():
+    if not usage_history:
+        return {"total_requests": 0, "total_input_tokens": 0,
+                "total_output_tokens": 0, "total_cost_usd": 0, "avg_latency_ms": 0}
+    return {
+        "total_requests": len(usage_history),
+        "total_input_tokens": sum(r["input_tokens"] for r in usage_history),
+        "total_output_tokens": sum(r["output_tokens"] for r in usage_history),
+        "total_cost_usd": round(sum(r["cost_usd"] for r in usage_history), 6),
+        "avg_latency_ms": round(
+            sum(r["latency_ms"] for r in usage_history) / len(usage_history)
+        ),
+    }
+
+
+def render_tv_image():
+    """Render a 240x240 PNG showing usage stats for SmallTV Ultra."""
+    W, H = 240, 240
+    BG      = (10, 10, 20)
+    ACCENT  = (88, 166, 255)
+    WHITE   = (230, 237, 243)
+    DIM     = (139, 148, 158)
+    GREEN   = (63, 185, 80)
+
+    img  = Image.new("RGB", (W, H), BG)
+    draw = ImageDraw.Draw(img)
+
+    try:
+        font_lg = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf", 15)
+        font_md = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 12)
+        font_sm = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", 10)
+    except OSError:
+        font_lg = font_md = font_sm = ImageFont.load_default()
+
+    s = _get_summary()
+
+    # header
+    draw.rectangle([0, 0, W, 26], fill=(20, 30, 48))
+    draw.text((8, 6), "Claude Monitor", font=font_lg, fill=ACCENT)
+    draw.text((W - 52, 8), datetime.now().strftime("%H:%M"), font=font_md, fill=DIM)
+
+    # divider
+    draw.line([0, 27, W, 27], fill=(48, 54, 61), width=1)
+
+    # stats rows
+    rows = [
+        ("Requests",    str(s["total_requests"]),                    WHITE),
+        ("In tokens",   f"{s['total_input_tokens']:,}",              DIM),
+        ("Out tokens",  f"{s['total_output_tokens']:,}",             DIM),
+        ("Total cost",  f"${s['total_cost_usd']:.5f}",               GREEN),
+        ("Avg latency", f"{s['avg_latency_ms']} ms",                 WHITE),
+    ]
+
+    y = 36
+    for label, value, color in rows:
+        draw.text((8, y), label, font=font_sm, fill=DIM)
+        draw.text((W - 8 - draw.textlength(value, font=font_md), y - 1), value, font=font_md, fill=color)
+        y += 26
+
+    # divider before history
+    draw.line([0, y, W, y], fill=(48, 54, 61), width=1)
+    y += 6
+
+    # last 3 requests
+    draw.text((8, y), "Recent", font=font_sm, fill=DIM)
+    y += 14
+
+    recent = list(reversed(usage_history[-3:]))
+    if not recent:
+        draw.text((8, y), "no data yet", font=font_sm, fill=DIM)
+    else:
+        for r in recent:
+            model_short = r["model"].replace("claude-", "").replace("-20251001", "")[:12]
+            line = f"{r['timestamp']}  {model_short}"
+            cost = f"${r['cost_usd']:.5f}"
+            draw.text((8, y), line, font=font_sm, fill=DIM)
+            draw.text((W - 8 - draw.textlength(cost, font=font_sm), y), cost, font=font_sm, fill=GREEN)
+            y += 14
+
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return buf
+
+
+# ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
@@ -78,23 +168,37 @@ def history():
 
 @app.route("/api/summary")
 def summary():
-    if not usage_history:
-        return jsonify({
-            "total_requests": 0,
-            "total_input_tokens": 0,
-            "total_output_tokens": 0,
-            "total_cost_usd": 0,
-            "avg_latency_ms": 0,
-        })
-    return jsonify({
-        "total_requests": len(usage_history),
-        "total_input_tokens": sum(r["input_tokens"] for r in usage_history),
-        "total_output_tokens": sum(r["output_tokens"] for r in usage_history),
-        "total_cost_usd": round(sum(r["cost_usd"] for r in usage_history), 6),
-        "avg_latency_ms": round(
-            sum(r["latency_ms"] for r in usage_history) / len(usage_history)
-        ),
-    })
+    return jsonify(_get_summary())
+
+
+@app.route("/api/tv-image")
+def tv_image():
+    """Return a 240x240 PNG preview of the SmallTV panel."""
+    buf = render_tv_image()
+    return send_file(buf, mimetype="image/png")
+
+
+@app.route("/api/tv-push", methods=["POST"])
+def tv_push():
+    """Render usage stats as PNG and push to SmallTV Ultra via /doUpload."""
+    data = request.get_json(silent=True) or {}
+    device_ip = data.get("device_ip") or os.getenv("SMALLTV_IP")
+
+    if not device_ip:
+        return jsonify({"error": "device_ip required (body JSON or SMALLTV_IP env)"}), 400
+
+    buf = render_tv_image()
+    upload_url = f"http://{device_ip}/doUpload"
+
+    try:
+        resp = requests.post(
+            upload_url,
+            files={"file": ("claude_monitor.png", buf, "image/png")},
+            timeout=5,
+        )
+        return jsonify({"ok": True, "device_status": resp.status_code})
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": str(e)}), 502
 
 
 if __name__ == "__main__":
