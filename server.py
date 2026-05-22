@@ -17,11 +17,13 @@ client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 usage_history = []
 latest_ratelimits = {}
+claude_usage = {}
 session_cost_usd = 0.0
 last_ping_at = None
 
 PING_MODEL  = "claude-haiku-4-5-20251001"
-PING_COST   = (1 / 1_000_000) * 0.80 + (1 / 1_000_000) * 4.00  # 1 input + 1 output token
+PING_COST   = (1 / 1_000_000) * 0.80 + (1 / 1_000_000) * 4.00
+CLAUDE_AUTH = os.path.join(os.path.dirname(__file__), "claude_auth.json")
 
 PRICING = {
     "claude-haiku-4-5-20251001": {"input": 0.80, "output": 4.00},
@@ -54,6 +56,56 @@ def _capture_ratelimits(headers):
     }
 
 
+def _fetch_claude_usage():
+    """Scrape claude.ai/settings/usage using saved browser auth state."""
+    global claude_usage
+    if not os.path.exists(CLAUDE_AUTH):
+        return
+
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            ctx = browser.new_context(storage_state=CLAUDE_AUTH)
+            page = ctx.new_page()
+            page.goto(
+                "https://claude.ai/settings/usage",
+                wait_until="networkidle",
+                timeout=30_000,
+            )
+
+            data = page.evaluate("""() => {
+                const text = document.body.innerText;
+                const pcts = [...text.matchAll(/(\\d+)%\\s*used/gi)].map(m => parseInt(m[1]));
+                const resets = [...text.matchAll(/[Rr]esets?\\s+([^\\n]+)/g)].map(m => m[1].trim());
+                const routineMatch = text.match(/(\\d+)\\s*\\/\\s*(\\d+)/);
+                return {
+                    pcts,
+                    resets,
+                    routine_used: routineMatch ? parseInt(routineMatch[1]) : null,
+                    routine_max:  routineMatch ? parseInt(routineMatch[2]) : null,
+                };
+            }""")
+
+            pcts   = data.get("pcts", [])
+            resets = data.get("resets", [])
+            claude_usage = {
+                "session_pct":       pcts[0] if len(pcts) > 0 else None,
+                "weekly_all_pct":    pcts[1] if len(pcts) > 1 else None,
+                "weekly_design_pct": pcts[2] if len(pcts) > 2 else None,
+                "session_resets":    resets[0] if resets else None,
+                "weekly_resets":     resets[1] if len(resets) > 1 else None,
+                "routine_used":      data.get("routine_used"),
+                "routine_max":       data.get("routine_max"),
+                "scraped_at":        datetime.now().strftime("%H:%M:%S"),
+                "error":             None,
+            }
+            browser.close()
+    except Exception as e:
+        claude_usage["error"] = str(e)
+        claude_usage["scraped_at"] = datetime.now().strftime("%H:%M:%S")
+
+
 def _do_ping():
     global session_cost_usd, last_ping_at
     try:
@@ -76,10 +128,11 @@ def _do_ping():
 
 
 def _ping_loop():
-    time.sleep(5)   # allow app to start
+    time.sleep(5)
     while True:
         _do_ping()
-        time.sleep(300)  # 5 minutes
+        _fetch_claude_usage()
+        time.sleep(300)
 
 
 def _get_summary():
@@ -224,8 +277,10 @@ def summary():
 def ratelimits():
     return jsonify({
         **latest_ratelimits,
-        "last_ping_at":    last_ping_at,
+        "last_ping_at":     last_ping_at,
         "session_cost_usd": round(session_cost_usd, 8),
+        "claude_usage":     claude_usage,
+        "auth_ready":       os.path.exists(CLAUDE_AUTH),
     })
 
 

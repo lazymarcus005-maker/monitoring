@@ -222,6 +222,27 @@
       color: var(--dim);
       font-size: 6px;
     }
+
+    /* ── claude.ai section ───────────────────────────── */
+    .claude-section {
+      padding: .85rem 1rem;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .claude-section .bars-title {
+      margin-bottom: .75rem;
+    }
+
+    .setup-hint {
+      font-size: 6px;
+      color: var(--dim);
+      line-height: 2;
+    }
+
+    .setup-hint a {
+      color: var(--orange);
+      text-decoration: none;
+    }
   </style>
 </head>
 <body>
@@ -302,6 +323,17 @@
     </div>
   </div>
 
+  <!-- claude.ai session/weekly usage -->
+  <div class="claude-section" id="claude-section">
+    <div class="bars-title">&gt; claude.ai usage</div>
+    <div id="claude-body">
+      <div class="setup-hint">
+        รัน setup_auth.py บน host แล้ว<br>
+        copy claude_auth.json มาไว้ใน folder เดียวกัน
+      </div>
+    </div>
+  </div>
+
   <!-- Footer -->
   <div class="footer">
     <div class="ping"><span class="dot"></span>AUTO PING 5M</div>
@@ -367,8 +399,46 @@
     setBar('bar-in',  'lbl-in',  'IN',   rl.input_tokens_limit, rl.input_tokens_remaining, null);
     setBar('bar-out', 'lbl-out', 'OUT',  rl.output_tokens_limit,rl.output_tokens_remaining,null);
 
+    // claude.ai session/weekly
+    const cu = rl.claude_usage || {};
+    const cb = $('claude-body');
+    if (!rl.auth_ready) {
+      cb.innerHTML = `<div class="setup-hint">
+        รัน <span style="color:var(--orange)">setup_auth.py</span> บน host แล้ว copy claude_auth.json มาไว้ใน project folder
+      </div>`;
+    } else if (cu.error) {
+      cb.innerHTML = `<div class="setup-hint" style="color:var(--red)">ERR: ${cu.error.substring(0,60)}</div>`;
+    } else if (cu.session_pct == null) {
+      cb.innerHTML = `<div class="setup-hint">กำลังโหลด... (5 min)</div>`;
+    } else {
+      const rows = [
+        ['SESSION', cu.session_pct,       cu.session_resets],
+        ['WEEKLY',  cu.weekly_all_pct,    cu.weekly_resets],
+        ['DESIGN',  cu.weekly_design_pct, null],
+      ].filter(r => r[1] != null);
+
+      cb.innerHTML = rows.map(([label, p, rst]) => {
+        const cls = p >= 90 ? 'crit' : p >= 70 ? 'warn' : '';
+        const rstStr = rst ? ' ' + rst.substring(0,16) : '';
+        return `<div class="bar-row">
+          <div class="bar-track"><div class="bar-fill ${cls}" style="width:${p}%"></div></div>
+          <div class="bar-label">${label} ${p}%${rstStr}</div>
+        </div>`;
+      }).join('');
+    }
+
+    if (cu.routine_max) {
+      const rp = Math.round((cu.routine_used / cu.routine_max) * 100);
+      const rc = rp >= 90 ? 'crit' : rp >= 70 ? 'warn' : '';
+      $('claude-body').innerHTML += `<div class="bar-row" style="margin-top:.4rem">
+        <div class="bar-track"><div class="bar-fill ${rc}" style="width:${rp}%"></div></div>
+        <div class="bar-label">ROUTINE ${cu.routine_used}/${cu.routine_max}</div>
+      </div>`;
+    }
+
     // footer
-    $('f-updated').textContent = rl.last_ping_at ? 'PING ' + rl.last_ping_at : 'WAITING...';
+    const pingTxt = cu.scraped_at ? 'SCRAPED ' + cu.scraped_at : (rl.last_ping_at ? 'PING ' + rl.last_ping_at : 'WAITING...');
+    $('f-updated').textContent = pingTxt;
   }
 
   refresh();
