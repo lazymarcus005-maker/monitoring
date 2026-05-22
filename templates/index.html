@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude Usage Monitor</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      background: #0d1117;
+      color: #c9d1d9;
+      min-height: 100vh;
+      padding: 1.5rem;
+    }
+
+    h1 {
+      font-size: 1rem;
+      color: #58a6ff;
+      margin-bottom: 1.5rem;
+      letter-spacing: .05em;
+    }
+
+    /* ── Summary cards ───────────────────────────────── */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: .75rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: .75rem 1rem;
+    }
+
+    .card .label {
+      font-size: .65rem;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: .25rem;
+    }
+
+    .card .value {
+      font-size: 1.1rem;
+      color: #e6edf3;
+      font-weight: 600;
+    }
+
+    /* ── Chat area ───────────────────────────────────── */
+    .chat-wrap {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    #messages {
+      height: 260px;
+      overflow-y: auto;
+      margin-bottom: .75rem;
+      display: flex;
+      flex-direction: column;
+      gap: .5rem;
+    }
+
+    .msg {
+      padding: .4rem .7rem;
+      border-radius: 4px;
+      font-size: .8rem;
+      line-height: 1.5;
+      max-width: 90%;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .msg.user  { align-self: flex-end;  background: #1f6feb33; border: 1px solid #1f6feb55; }
+    .msg.bot   { align-self: flex-start; background: #21262d;   border: 1px solid #30363d; }
+    .msg.error { align-self: flex-start; background: #3d1c1c;   border: 1px solid #da3633; color: #ff7b72; }
+
+    .input-row {
+      display: flex;
+      gap: .5rem;
+    }
+
+    select {
+      background: #0d1117;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      padding: .4rem .6rem;
+      font-size: .75rem;
+      font-family: inherit;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      background: #0d1117;
+      color: #e6edf3;
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      padding: .4rem .7rem;
+      font-size: .8rem;
+      font-family: inherit;
+      outline: none;
+    }
+
+    input[type="text"]:focus { border-color: #58a6ff; }
+
+    button {
+      background: #238636;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: .4rem .9rem;
+      font-size: .8rem;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background .15s;
+    }
+
+    button:hover   { background: #2ea043; }
+    button:disabled { background: #21262d; color: #8b949e; cursor: default; }
+
+    /* ── History table ───────────────────────────────── */
+    .section-title {
+      font-size: .7rem;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: .5rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .75rem;
+    }
+
+    th {
+      text-align: left;
+      color: #8b949e;
+      border-bottom: 1px solid #30363d;
+      padding: .35rem .5rem;
+      font-weight: 400;
+    }
+
+    td {
+      padding: .35rem .5rem;
+      border-bottom: 1px solid #21262d;
+      color: #c9d1d9;
+    }
+
+    tr:last-child td { border-bottom: none; }
+
+    .model-tag {
+      display: inline-block;
+      font-size: .65rem;
+      padding: .1rem .4rem;
+      border-radius: 3px;
+      background: #1f6feb22;
+      border: 1px solid #1f6feb44;
+      color: #58a6ff;
+    }
+
+    .empty { color: #484f58; font-size: .8rem; padding: .75rem .5rem; }
+  </style>
+</head>
+<body>
+
+<h1>▸ Claude Usage Monitor</h1>
+
+<!-- Summary cards -->
+<div class="cards">
+  <div class="card"><div class="label">Requests</div><div class="value" id="s-req">—</div></div>
+  <div class="card"><div class="label">Input tokens</div><div class="value" id="s-in">—</div></div>
+  <div class="card"><div class="label">Output tokens</div><div class="value" id="s-out">—</div></div>
+  <div class="card"><div class="label">Cost (USD)</div><div class="value" id="s-cost">—</div></div>
+  <div class="card"><div class="label">Avg latency</div><div class="value" id="s-lat">—</div></div>
+</div>
+
+<!-- Chat -->
+<div class="chat-wrap">
+  <div id="messages"></div>
+  <div class="input-row">
+    <select id="model">
+      <option value="claude-haiku-4-5-20251001">Haiku 4.5 (cheap)</option>
+      <option value="claude-sonnet-4-6">Sonnet 4.6</option>
+      <option value="claude-opus-4-7">Opus 4.7</option>
+    </select>
+    <input type="text" id="prompt" placeholder="พิมพ์ข้อความ…" autocomplete="off">
+    <button id="send-btn" onclick="sendMessage()">Send</button>
+  </div>
+</div>
+
+<!-- History -->
+<div class="section-title">Request history</div>
+<table>
+  <thead>
+    <tr>
+      <th>Time</th>
+      <th>Model</th>
+      <th>In</th>
+      <th>Out</th>
+      <th>Cost ($)</th>
+      <th>ms</th>
+      <th>Prompt</th>
+    </tr>
+  </thead>
+  <tbody id="history-body">
+    <tr><td colspan="7" class="empty">ยังไม่มีประวัติ</td></tr>
+  </tbody>
+</table>
+
+<script>
+  const $ = id => document.getElementById(id);
+
+  async function refreshSummary() {
+    const r = await fetch('/api/summary');
+    const d = await r.json();
+    $('s-req').textContent  = d.total_requests;
+    $('s-in').textContent   = d.total_input_tokens.toLocaleString();
+    $('s-out').textContent  = d.total_output_tokens.toLocaleString();
+    $('s-cost').textContent = '$' + d.total_cost_usd.toFixed(6);
+    $('s-lat').textContent  = d.avg_latency_ms + ' ms';
+  }
+
+  async function refreshHistory() {
+    const r = await fetch('/api/history');
+    const rows = await r.json();
+    const tbody = $('history-body');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">ยังไม่มีประวัติ</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(row => `
+      <tr>
+        <td>${row.timestamp}</td>
+        <td><span class="model-tag">${row.model.replace('claude-','')}</span></td>
+        <td>${row.input_tokens}</td>
+        <td>${row.output_tokens}</td>
+        <td>${row.cost_usd.toFixed(6)}</td>
+        <td>${row.latency_ms}</td>
+        <td style="color:#8b949e;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(row.preview)}</td>
+      </tr>`).join('');
+  }
+
+  function esc(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function appendMsg(text, cls) {
+    const div = document.createElement('div');
+    div.className = 'msg ' + cls;
+    div.textContent = text;
+    const box = $('messages');
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  async function sendMessage() {
+    const input = $('prompt');
+    const btn   = $('send-btn');
+    const msg   = input.value.trim();
+    if (!msg) return;
+
+    input.value = '';
+    btn.disabled = true;
+    appendMsg(msg, 'user');
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ message: msg, model: $('model').value }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        appendMsg('Error: ' + data.error, 'error');
+      } else {
+        appendMsg(data.content, 'bot');
+        await Promise.all([refreshSummary(), refreshHistory()]);
+      }
+    } catch(e) {
+      appendMsg('Network error: ' + e.message, 'error');
+    } finally {
+      btn.disabled = false;
+      input.focus();
+    }
+  }
+
+  $('prompt').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+
+  refreshSummary();
+  refreshHistory();
+</script>
+</body>
+</html>
